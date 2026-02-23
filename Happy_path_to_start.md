@@ -2,24 +2,24 @@
 
 ## What You're About to Build
 
-Imagine you need to check example.com every day to grab some information. Maybe it's pricing data, product availability, or news updates. Instead of manually opening your browser, navigating to the page, and copy-pasting data, you're going to automate this entire process with **Steel**.
+This guide walks through automating a real browser workflow in minutes.
 
-**Steel is your browser in the cloud.** It spins up a real Chrome instance, controlled by your code, that can visit websites, click buttons, fill forms, and extract data just like you would manually. The difference? It runs 24/7, never gets tired, and takes milliseconds instead of minutes.
+Instead of manually opening a browser and copying data from a page like example.com, you’ll run the same workflow inside a dedicated cloud browser session. The session behaves exactly like Chrome on your machine, except it runs in Steel’s infrastructure and is fully controlled through code.
 
-Let's build this step by step.
+Steel provides programmable browser sessions designed for agents and automation. Sessions start in under a second, can run for hours, and execute web workflows reliably in production environments.
+
+We’ll build it step by step.
 
 ---
 
 ## Step 1: Get Your Steel API Key
 
-Before writing any code, you need access to Steel's cloud browsers.
+Before writing any code, you need access to Steel’s cloud browser sessions. Access is granted through an API key, which authenticates requests to the Steel control plane and authorizes session creation.
 
 1. Go to [steel.dev](https://steel.dev) and sign up for an account
 2. Navigate to your dashboard
 3. Find your **API key**, it looks something like `sk_live_abc123...`
-4. Copy it somewhere safe (you'll need it in a moment)
-
-**Why Steel needs this:** Your API key is how Steel knows it's you making requests. It's like a password that lets you spin up browsers in their cloud.
+4. Copy it somewhere safe 
 
 ---
 
@@ -43,87 +43,17 @@ npm install steel-sdk puppeteer-core dotenv
 
 ## Step 3: Store Your API Key
 
-Create a `.env` file in your project root:
+Create a `.env` file in your project root to keep your API key out of your code for security:
 
 ```
 STEEL_API_KEY=your_api_key_here
 ```
 
-**Why:** Keep your API key out of your code for security.
-
 ---
 
 ## Step 4: Write the Automation Script
 
-Create a file called `scrape.js`:
-
-```javascript
-require('dotenv').config();
-const Steel = require('steel-sdk');
-const puppeteer = require('puppeteer-core');
-
-// Initialize Steel with your API key
-const steel = new Steel({ steelAPIKey: process.env.STEEL_API_KEY });
-
-async function scrapeExample() {
-  // Step 1: Request a browser session from Steel
-  console.log('🚀 Starting a Steel browser session...');
-  const session = await steel.sessions.create();
-  console.log(`✅ Session created: ${session.id}`);
-
-  // Step 2: Connect Puppeteer to your cloud browser
-  console.log('🔌 Connecting to the browser...');
-  const browser = await puppeteer.connect({
-    browserWSEndpoint: `wss://connect.steel.dev?apiKey=${process.env.STEEL_API_KEY}&sessionId=${session.id}`
-  });
-
-  // Step 3: Open a new page and navigate
-  console.log('🌐 Navigating to example.com...');
-  const page = await browser.newPage();
-  await page.goto('https://example.com');
-  console.log('✅ Page loaded!');
-
-  // Step 4: Extract the information we want
-  console.log('📖 Reading page content...');
-  const pageData = await page.evaluate(() => {
-    return {
-      h1: document.querySelector('h1')?.textContent,
-      paragraph: document.querySelector('p')?.textContent,
-      allLinks: Array.from(document.querySelectorAll('a')).map(a => ({
-        text: a.textContent,
-        href: a.href
-      }))
-    };
-  });
-
-  console.log('📊 Data extracted:');
-  console.log(JSON.stringify(pageData, null, 2));
-
-  // Step 5: Clean up - close everything
-  console.log('🧹 Closing the browser and session...');
-  await browser.close();
-  await steel.sessions.release(session.id);
-  console.log('✅ Done! Session closed.');
-
-  return pageData;
-}
-
-// Run the automation
-scrapeExample()
-  .then(data => {
-    console.log('\n🎉 Success! Here\'s what we got:');
-    console.log(data);
-  })
-  .catch(error => {
-    console.error('❌ Something went wrong:', error.message);
-  });
-```
-
----
-
-## Understanding What This Code Does
-
-Let's break down each part so you understand exactly what's happening:
+Create `scrape.js`. The complete code is in the Appendix. We'll walk through that code and break down each part so you understand exactly what's happening.
 
 ### **The Setup**
 ```javascript
@@ -133,7 +63,7 @@ const puppeteer = require('puppeteer-core');
 const steel = new Steel({ steelAPIKey: process.env.STEEL_API_KEY });
 ```
 
-This is your connection handshake with Steel. You're loading your secret API key and creating a `steel` object that can spin up cloud browsers. The `puppeteer` library is what you'll use to actually control those browsers.
+This initializes the Steel client using your API key. The `steel` object is your interface for creating and managing browser sessions.
 
 ---
 
@@ -142,9 +72,9 @@ This is your connection handshake with Steel. You're loading your secret API key
 const session = await steel.sessions.create();
 ```
 
-**This is where the magic happens.** Steel spins up a real Chrome browser in their cloud just for you. It's like calling a taxi: you request it, and within seconds, a fresh browser is ready and waiting for your commands.
+This call provisions a new isolated browser session in Steel’s cloud. Each session runs a real Chrome instance and returns a unique `session.id`. All subsequent commands are scoped to that session.
 
-The `session.id` is your unique identifier for this browser. Multiple people can use Steel at once, and this ID makes sure your commands go to *your* browser, not someone else's.
+Sessions are independent, which means you can run multiple workflows concurrently without state collisions.
 
 ### **Connecting Puppeteer to Your Cloud Browser**
 ```javascript
@@ -152,13 +82,9 @@ const browser = await puppeteer.connect({
   browserWSEndpoint: `wss://connect.steel.dev?apiKey=${process.env.STEEL_API_KEY}&sessionId=${session.id}`
 });
 ```
+Puppeteer connects directly to the Steel session over WebSocket. The connection string includes your API key for authentication and the session ID to route commands to the correct browser instance.
 
-This is where Puppeteer connects to your Steel browser via WebSocket. The URL includes:
-- **wss://connect.steel.dev** - Steel's WebSocket gateway
-- **apiKey** - Your authentication
-- **sessionId** - Which specific browser to connect to
-
-Think of it like dialing into a video conference - you need the meeting link (connect.steel.dev), your credentials (apiKey), and the specific room number (sessionId).
+Once connected, you’re controlling a real cloud browser as if it were running locally.
 
 ---
 
@@ -168,9 +94,9 @@ const page = await browser.newPage();
 await page.goto('https://example.com');
 ```
 
-Now you're actually controlling the browser. `newPage()` opens a fresh tab, and `goto()` tells it to load example.com just like clicking the address bar and hitting Enter.
+You are now controlling the browser session. `newPage()` opens a fresh tab, and `goto()` tells it to load example.com just like clicking the address bar and hitting Enter.
 
-**Why Steel is perfect here:** Traditional scraping tools send simple HTTP requests, which many modern websites block or return incomplete data. Steel uses a *real browser*, so the website sees a normal visitor, not a bot.
+**Why Steel:** Many modern websites block non-browser traffic or return incomplete responses to HTTP clients. Steel runs a full browser session, so your automation executes exactly as a real user would, including JavaScript rendering, authentication flows, and dynamic content.
 
 ---
 
@@ -188,7 +114,7 @@ const pageData = await page.evaluate(() => {
 });
 ```
 
-This is where you grab the information you need. `page.evaluate()` runs JavaScript **inside the browser page** — just like opening your browser's console and typing code there.
+This executes JavaScript inside the browser context to extract structured data. `page.evaluate()` runs JavaScript **inside the browser page** — just like opening your browser's console and typing code there.
 
 You're using standard web APIs:
 - `document.querySelector('h1')` - Find the first `<h1>` tag
@@ -196,7 +122,7 @@ You're using standard web APIs:
 - `.textContent` - Get the visible text
 - `.href` - Get the link URL
 
-**The beauty of Steel + Puppeteer:** You use the exact same JavaScript you'd write in a browser console. No special syntax, no learning curve — if you know basic web development, you already know how to scrape with Steel.
+Steel works with the automation frameworks you already use. If you know Puppeteer, you already know how to run workflows on Steel. There’s no new execution model, just managed browser infrastructure behind it.
 
 ---
 
@@ -206,11 +132,11 @@ await browser.close();
 await steel.sessions.release(session.id);
 ```
 
-This shuts down your Puppeteer connection and releases your cloud browser. **Important:** Steel charges based on session time, so always close your sessions when you're done. 
+This closes the Puppeteer connection and releases the browser session.
 
-`browser.close()` disconnects Puppeteer, and `steel.sessions.release()` tells Steel "I'm done with this browser, you can shut it down." Think of it like hanging up a phone call — leaving it running wastes resources (and money).
+Steel bills based on session time. Always release sessions when your workflow completes to ensure proper resource cleanup and cost control.
 
-**💡 Pro tip:** Not sure if you have sessions running? Check your [Steel dashboard](https://app.steel.dev/sessions) to view all active sessions.
+**Pro tip:** Not sure if you have sessions running? Check your [Steel dashboard](https://app.steel.dev/sessions) to view all active sessions.
 
 ---
 
@@ -222,15 +148,15 @@ Execute the script:
 node scrape.js
 ```
 
-You'll see output like this:
+Example output:
 
 ```
-🚀 Starting a Steel browser session...
-✅ Session created: ses_abc123xyz
-🌐 Navigating to example.com...
-✅ Page loaded!
-📖 Reading page content...
-📊 Data extracted:
+Starting a Steel browser session...
+Session created: ses_abc123xyz
+Navigating to example.com...
+Page loaded!
+Reading page content...
+Data extracted:
 {
   "h1": "Example Domain",
   "paragraph": "This domain is for use in illustrative examples...",
@@ -238,26 +164,28 @@ You'll see output like this:
     { "text": "More information...", "href": "https://www.iana.org/domains/example" }
   ]
 }
-🧹 Closing the session...
-✅ Done! Session closed.
+Closing the session...
+Done! Session closed.
 ```
 
-**Congratulations!** You just automated a web task that would take a human 10-15 seconds, and your code did it in under 3 seconds.
+You just executed a browser workflow inside a managed cloud session without provisioning infrastructure or maintaining browser fleets.
+
+That’s the core Steel pattern: create a session, connect, run automation, release.
 
 ---
 
 ## What's Next?
 
-Now that you've mastered the happy path, here's what Steel can do beyond basic scraping:
+This example demonstrates the core session lifecycle. In production, Steel extends this execution model with:
 
-- **Beat bot detection** with residential proxies across millions of IPs
-- **Auto-solve CAPTCHAs** (reCAPTCHA, Cloudflare Turnstile) without manual intervention
-- **Persist login sessions** with cookies and localStorage across multiple runs
-- **Debug live** with real-time session viewers showing exactly what your browser sees
-- **Extract LLM-ready data** with automatic markdown conversion (80% fewer tokens)
-- **Scale to thousands** of concurrent sessions without managing infrastructure
+- Managed residential proxy routing and fingerprint controls
+- Built-in CAPTCHA handling (reCAPTCHA, Turnstile)
+- Long-lived sessions (up to 24 hours) with persisted state
+- Live session viewers and replayable traces for debugging and verification
+- Structured and markdown extraction for LLM-driven workflows
+- Horizontal scaling across thousands of concurrent sessions
 
-**The foundation is the same:** create session → connect Puppeteer → automate → close session.
+The primitive stays the same: create → connect → execute → release. Steel handles the execution layer.
 
 You can find more examples in [Steel's Cookbook](https://github.com/steel-dev/steel-cookbook).
 
@@ -265,17 +193,81 @@ You can find more examples in [Steel's Cookbook](https://github.com/steel-dev/st
 
 ## The Bottom Line
 
-Steel turns browser automation from a multi-day DevOps project into a 10-minute coding task. You get enterprise-grade browser infrastructure without managing a single server.
+Steel replaces custom browser infrastructure with a managed execution layer built for agents.
 
-**Your code stays simple. Steel handles the complexity.**
+You get isolated sessions, state management, observability, anti-bot handling, and long-running workflows without operating browsers yourself.
 
-That's the Steel.dev promise — and you just experienced it firsthand.
+Humans use Chrome. Agents use Steel.
 
 ---
 
 ## Need Help?
 
-- 📚 [Steel Documentation](https://docs.steel.dev)
-- 💬 [Discord Community](https://discord.com/invite/steeldivision)
+- [Steel Documentation](https://docs.steel.dev)
+- [Discord Community](https://discord.com/invite/steeldivision)
 
-Now go automate something awesome! 🚀
+---
+
+## Appendix: Complete Code
+
+```javascript
+require('dotenv').config();
+const Steel = require('steel-sdk');
+const puppeteer = require('puppeteer-core');
+
+// Initialize Steel with your API key
+const steel = new Steel({ steelAPIKey: process.env.STEEL_API_KEY });
+
+async function scrapeExample() {
+  // Step 1: Request a browser session from Steel
+  console.log('Starting a Steel browser session...');
+  const session = await steel.sessions.create();
+  console.log(`Session created: ${session.id}`);
+
+  // Step 2: Connect Puppeteer to your cloud browser
+  console.log('Connecting to the browser...');
+  const browser = await puppeteer.connect({
+    browserWSEndpoint: `wss://connect.steel.dev?apiKey=${process.env.STEEL_API_KEY}&sessionId=${session.id}`
+  });
+
+  // Step 3: Open a new page and navigate
+  console.log('Navigating to example.com...');
+  const page = await browser.newPage();
+  await page.goto('https://example.com');
+  console.log('Page loaded!');
+
+  // Step 4: Extract the information we want
+  console.log('Reading page content...');
+  const pageData = await page.evaluate(() => {
+    return {
+      h1: document.querySelector('h1')?.textContent,
+      paragraph: document.querySelector('p')?.textContent,
+      allLinks: Array.from(document.querySelectorAll('a')).map(a => ({
+        text: a.textContent,
+        href: a.href
+      }))
+    };
+  });
+
+  console.log('Data extracted:');
+  console.log(JSON.stringify(pageData, null, 2));
+
+  // Step 5: Clean up - close everything
+  console.log('Closing the browser and session...');
+  await browser.close();
+  await steel.sessions.release(session.id);
+  console.log('Done! Session closed.');
+
+  return pageData;
+}
+
+// Run the automation
+scrapeExample()
+  .then(data => {
+    console.log('\nSuccess! Here\'s what we got:');
+    console.log(data);
+  })
+  .catch(error => {
+    console.error('Something went wrong:', error.message);
+  });
+```
