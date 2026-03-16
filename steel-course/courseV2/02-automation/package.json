@@ -1,0 +1,12 @@
+{
+  "type": "module",
+  "scripts": {
+    "start": "node research-agent.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "dotenv": "^16.0.0",
+    "playwright": "^1.40.0",
+    "steel-sdk": "^0.1.0"
+  }
+}

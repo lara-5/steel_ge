@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Steel Test Extension",
+  "version": "1.0",
+  "description": "Minimal test extension for verifying the Steel Extensions API upload flow",
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ]
+}
